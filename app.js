@@ -1,9 +1,14 @@
 import express, { json, urlencoded } from "express";
 
-var app = express();
+// Importing the URL routes
+import urlRoutes from "./routes/urlRoutes.js";
 
+const app = express();
+// Middleware to parse JSON and URL-encoded data
 app.use(json());
 app.use(urlencoded({ extended: false }));
+
+app.use("/api/v1", urlRoutes);
 
 app.get("/", (req, res) => {
   res.send("Hello World");
