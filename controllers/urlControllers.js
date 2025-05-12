@@ -1,16 +1,32 @@
-const mapShortUrltoLongUrl = new Map();
 import { customAlphabet } from "nanoid";
+import URL from "../models/URL.js";
 import { logger } from "../utils/logger.js";
 
-export const shortenUrl = (req, res) => {
+const nanoid = customAlphabet(
+  "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+  7
+);
+
+export const shortenUrl = async (req, res) => {
   const { originalUrl } = req.body;
-  const nanoid = customAlphabet(
-    "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
-    7
+  const url = await URL.findOne({ originalUrl }).exec();
+  if (url) {
+    logger.error(`URL already exists: ${originalUrl}`);
+    res.status(400).json({
+      message: "URL already exists",
+    });
+    return;
+  }
+  const shortUrlKey = nanoid();
+  const shortUrl = `${process.env.BASE_URL}/api/v1/${shortUrlKey}`;
+  const newUrl = await URL.create({
+    originalUrl,
+    shortUrlKey,
+  });
+
+  logger.info(
+    `Shortened URL: ${shortUrl} for original URL: ${originalUrl} and saved to DB with ID: ${newUrl._id}`
   );
-  const shortUrl = `${process.env.BASE_URL}/api/v1/${nanoid()}`;
-  mapShortUrltoLongUrl.set(shortUrl, originalUrl);
-  logger.info(`Shortened URL: ${shortUrl} for original URL: ${originalUrl}`);
   res.status(200).json({
     message: "URL shortened successfully",
     originalUrl,
@@ -18,18 +34,20 @@ export const shortenUrl = (req, res) => {
   });
 };
 
-export const redirectToLongUrl = (req, res) => {
+export const redirectToLongUrl = async (req, res) => {
   const { shortUrlKey } = req.params;
-  const shortUrl = `${process.env.BASE_URL}/api/v1/${shortUrlKey}`;
-  if (!mapShortUrltoLongUrl.has(shortUrl)) {
-    logger.error(`Short URL not found: ${shortUrl}`);
+  const url = await URL.findOne({ shortUrlKey }).exec();
+  if (!url) {
+    logger.error(`Short URL Key not found: ${shortUrlKey}`);
     return res.status(404).json({
       message: "Short URL not found",
     });
   }
-  const originalUrl = mapShortUrltoLongUrl.get(shortUrl);
+  const { originalUrl } = url;
+  url.clickCount += 1;
+  await url.save();
   logger.info(
-    `Redirecting to original URL: ${originalUrl} for short URL: ${shortUrl}`
+    `Redirecting to original URL: ${originalUrl} for short URL: ${shortUrlKey} with click count: ${url.clickCount}`
   );
   res.redirect(302, originalUrl);
 };

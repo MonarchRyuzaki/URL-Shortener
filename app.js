@@ -1,7 +1,8 @@
 import dotenv from "dotenv";
 import express, { json, urlencoded } from "express";
+import mongoose from "mongoose";
 dotenv.config();
-console.log(process.env.BASE_URL);
+const PORT = process.env.PORT || 3000;
 
 // Importing the URL routes
 import urlRoutes from "./routes/urlRoutes.js";
@@ -20,8 +21,16 @@ app.get("/", (req, res) => {
   res.send("Hello World");
 });
 
-app.listen(3000, () => {
-  console.log("Server is running on port 3000");
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+  mongoose
+    .connect(process.env.MONGO_URI)
+    .then(() => {
+      console.log("Connected to MongoDB");
+    })
+    .catch((err) => {
+      console.error("Error connecting to MongoDB", err);
+    });
 });
 
 export default app;
