@@ -1,0 +1,32 @@
+Initially 
+const { originalUrl } = req.body;
+const url = await URL.findOne({ originalUrl }).lean().exec();
+if (url) {
+// logger.error(URL already exists: ${originalUrl});
+res.status(400).json({
+    message: "URL already exists",
+});
+return;
+}
+const shortUrlKey = nanoid();
+const shortUrl = ${process.env.BASE_URL}/api/v1/${shortUrlKey};
+await URL.create({
+originalUrl,
+shortUrlKey,
+});
+
+This gave 5-6 requests/sec due to race condition, server was stopping due to error.
+
+const { originalUrl } = req.body;
+const url = await URL.findOneAndUpdate(
+{ originalUrl },
+{ $setOnInsert: { originalUrl, shortUrlKey: nanoid() } },
+{ new: true, upsert: true, setDefaultsOnInsert: true }
+)
+.lean()
+.exec();
+const shortUrl = `${process.env.BASE_URL}/api/v1/${url.shortUrlKey}`;
+
+new : true         // return the document after update/insert
+upsert: true       // insert if it doesn’t exist
+This gave 1000 requests/sec due to the use of upsert and prevents race condition.

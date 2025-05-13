@@ -9,23 +9,15 @@ const nanoid = customAlphabet(
 
 export const shortenUrl = async (req, res) => {
   const { originalUrl } = req.body;
-  const url = await URL.findOne({ originalUrl }).exec();
-  if (url) {
-    logger.error(`URL already exists: ${originalUrl}`);
-    res.status(400).json({
-      message: "URL already exists",
-    });
-    return;
-  }
-  const shortUrlKey = nanoid();
-  const shortUrl = `${process.env.BASE_URL}/api/v1/${shortUrlKey}`;
-  const newUrl = await URL.create({
-    originalUrl,
-    shortUrlKey,
-  });
+  const url = await URL.findOneAndUpdate(
+    { originalUrl },
+    { $setOnInsert: { originalUrl, shortUrlKey: nanoid() } },
+    { new: true, upsert: true, setDefaultsOnInsert: true, lean: true }
+  ).exec();
+  const shortUrl = `${process.env.BASE_URL}/api/v1/${url.shortUrlKey}`;
 
   logger.info(
-    `Shortened URL: ${shortUrl} for original URL: ${originalUrl} and saved to DB with ID: ${newUrl._id}`
+    `Shortened URL: ${shortUrl} for original URL: ${originalUrl} and saved to DB with ID: ${url._id}`
   );
   res.status(200).json({
     message: "URL shortened successfully",
@@ -36,18 +28,23 @@ export const shortenUrl = async (req, res) => {
 
 export const redirectToLongUrl = async (req, res) => {
   const { shortUrlKey } = req.params;
-  const url = await URL.findOne({ shortUrlKey }).exec();
+  const url = await URL.findOneAndUpdate({
+    shortUrlKey,
+  }, {
+    $inc: { clickCount: 1 },
+  }, {
+    new: true,
+    projection: { originalUrl: 1, clickCount: 1 },
+    lean: true,
+  }).exec();
   if (!url) {
     logger.error(`Short URL Key not found: ${shortUrlKey}`);
     return res.status(404).json({
       message: "Short URL not found",
     });
   }
-  const { originalUrl } = url;
-  url.clickCount += 1;
-  await url.save();
   logger.info(
-    `Redirecting to original URL: ${originalUrl} for short URL: ${shortUrlKey} with click count: ${url.clickCount}`
+    `Redirecting to original URL: ${url.originalUrl} for short URL: ${shortUrlKey} with click count: ${url.clickCount}`
   );
-  res.redirect(302, originalUrl);
+  res.redirect(301, originalUrl);
 };
