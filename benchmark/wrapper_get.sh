@@ -1,7 +1,7 @@
 #!/bin/bash
 
 d="10s"
-node 100postRequests.js
+node 1000postRequests.js
 
 for c in 1 5 10 25 50 100; do
   output_file="get_output_${c}conn_${d}.txt"

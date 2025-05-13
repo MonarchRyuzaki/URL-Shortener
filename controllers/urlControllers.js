@@ -37,7 +37,7 @@ export const redirectToLongUrl = async (req, res) => {
     projection: { originalUrl: 1, clickCount: 1 },
     lean: true,
   }).exec();
-  if (!url) {
+  if (!url || !url.originalUrl) {
     logger.error(`Short URL Key not found: ${shortUrlKey}`);
     return res.status(404).json({
       message: "Short URL not found",
@@ -46,5 +46,10 @@ export const redirectToLongUrl = async (req, res) => {
   logger.info(
     `Redirecting to original URL: ${url.originalUrl} for short URL: ${shortUrlKey} with click count: ${url.clickCount}`
   );
-  res.redirect(301, originalUrl);
+  res.status(200).json({
+    message: "Redirecting to original URL",
+    originalUrl: url.originalUrl,
+    clickCount: url.clickCount,
+  });
+  // res.redirect(301, originalUrl);
 };
