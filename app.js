@@ -6,7 +6,7 @@ const PORT = process.env.PORT || 3000;
 
 // Importing the URL routes
 import urlRoutes from "./routes/urlRoutes.js";
-import { morganMiddleware } from "./utils/logger.js";
+import { logger, morganMiddleware } from "./utils/logger.js";
 
 const app = express();
 
@@ -21,11 +21,19 @@ app.get("/", (req, res) => {
   res.send("Hello World");
 });
 
+app.use((err, req, res, next) => {
+  logger.error(err.message);
+  res.status(err.status || 500).json({
+    status: "error",
+    message: err.message || "Internal Server Error",
+  });
+});
+
 app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
   mongoose
     .connect(process.env.MONGO_URI, {
-      maxPoolSize: 10000
+      maxPoolSize: 10000,
     })
     .then(() => {
       console.log("Connected to MongoDB");
