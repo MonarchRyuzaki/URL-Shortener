@@ -1,0 +1,8 @@
+Running 10s test @ https://url-shortener-pbhq.onrender.com
+  1 threads and 1 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   213.09ms   40.94ms 397.08ms   91.11%
+    Req/Sec     4.82      1.64    10.00     73.33%
+  45 requests in 10.02s, 23.02KB read
+Requests/sec:      4.49
+Transfer/sec:      2.30KB
