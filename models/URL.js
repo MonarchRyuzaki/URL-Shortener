@@ -18,6 +18,11 @@ const urlSchmea = new Schema(
       type: Number,
       default: 0,
     },
+    expiresAt: {
+      type: Date,
+      default: () => Date.now() + 60 * 60 * 24 * 7 * 1000,
+      expires: 0,
+    },
   },
   { timestamps: true }
 );

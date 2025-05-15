@@ -1,8 +1,8 @@
 import { customAlphabet } from "nanoid";
+import validator from "validator";
 import URL from "../models/URL.js";
 import { AppError } from "../utils/errorHandlers.js";
 import { logger } from "../utils/logger.js";
-import validator from "validator";
 const { isURL } = validator;
 
 const nanoid = customAlphabet(
@@ -12,7 +12,7 @@ const nanoid = customAlphabet(
 
 export const shortenUrl = async (req, res, next) => {
   try {
-    const { originalUrl } = req.body; 
+    const { originalUrl } = req.body;
     originalUrl.trim();
     if (isURL(originalUrl) === false) {
       throw new AppError("Invalid URL", 400);
@@ -31,6 +31,7 @@ export const shortenUrl = async (req, res, next) => {
       message: "URL shortened successfully",
       originalUrl,
       shortUrl,
+      expiresIn: Math.floor(url.expiresAt - new Date()),
     });
   } catch (err) {
     next(err);
@@ -56,12 +57,15 @@ export const redirectToLongUrl = async (req, res, next) => {
       },
       {
         new: true,
-        projection: { originalUrl: 1, clickCount: 1 },
+        projection: { originalUrl: 1, clickCount: 1, expiresAt: 1 },
         lean: true,
       }
     ).exec();
     if (!url || !url.originalUrl) {
       throw new AppError(`Short URL Key not found: ${shortUrlKey}`, 404);
+    }
+    if (url.expiresAt < new Date()) {
+      throw new AppError("Short URL has expired", 410);
     }
     logger.info(
       `Redirecting to original URL: ${url.originalUrl} for short URL: ${shortUrlKey} with click count: ${url.clickCount}`
@@ -72,6 +76,47 @@ export const redirectToLongUrl = async (req, res, next) => {
       clickCount: url.clickCount,
     });
     // res.redirect(301, originalUrl);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getUrlStats = async (req, res, next) => {
+  try {
+    const { shortUrlKey } = req.params;
+    shortUrlKey.trim();
+    if (!shortUrlKey) {
+      throw new AppError("Short URL is required", 400);
+    }
+    if (shortUrlKey.length !== 7) {
+      throw new AppError("Incorrect Short URL", 400);
+    }
+    const url = await URL.findOne(
+      {
+        shortUrlKey,
+      },
+      { originalUrl: 1, clickCount: 1, createdAt: 1, expiresAt: 1 }
+    )
+      .lean()
+      .exec();
+    if (!url || !url.originalUrl) {
+      throw new AppError(`Short URL Key not found: ${shortUrlKey}`, 404);
+    }
+    logger.info(
+      `Fetching stats for short URL: ${shortUrlKey} with original URL: ${url.originalUrl} and click count: ${url.clickCount}, createdAt: ${url.createdAt}`
+    );
+    res.status(200).json({
+      message: "URL stats fetched successfully",
+      originalUrl: url.originalUrl,
+      clickCount: url.clickCount,
+      createdAt: url.createdAt.toLocaleDateString("en-IN", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }),
+      expiresIn: Math.floor(url.expiresAt - new Date()),
+      status: url.expiresAt > new Date() ? "active" : "expired",
+    });
   } catch (err) {
     next(err);
   }
