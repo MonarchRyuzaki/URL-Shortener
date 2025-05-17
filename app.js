@@ -5,6 +5,7 @@ dotenv.config();
 const PORT = process.env.PORT || 3000;
 
 // Importing the URL routes
+import { shortenLimiter } from "./config/rate-limiter.js";
 import client from "./config/redis.js";
 import urlRoutes from "./routes/urlRoutes.js";
 import { logger, morganMiddleware } from "./utils/logger.js";
@@ -16,6 +17,9 @@ app.use(json());
 app.use(urlencoded({ extended: false }));
 app.use(morganMiddleware);
 
+if (process.env.NODE_ENV === "production") {
+  app.use("/api/v1/shorten", shortenLimiter);
+}
 app.use("/api/v1", urlRoutes);
 
 app.get("/", (req, res) => {
