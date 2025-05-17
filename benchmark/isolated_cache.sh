@@ -23,7 +23,7 @@ for c in "${concurrency_levels[@]}"; do
   warm_output="get_output_${c}conn_${duration}_warm.txt"
   echo "Running warm cache test..."
 #   wrk -t"$c" -c"$c" -d"$duration" -s get_test.lua http://localhost:3000 > "$warm_output"
-  wrk -t"$c" -c"$c" -d"$duration" -s get_test.lua https://url-shortener-pbhq.onrender.com > "$cold_output"
+  wrk -t"$c" -c"$c" -d"$duration" -s get_test.lua https://url-shortener-pbhq.onrender.com > "$warm_output"
   echo "Warm output saved to $warm_output"
 
   # Step 4: Cleanup - remove the short URLs
