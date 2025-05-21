@@ -1,7 +1,7 @@
 import { customAlphabet } from "nanoid";
 import validator from "validator";
-import client from "../config/redis.js";
 import URL from "../models/URL.js";
+import { hashRing } from "../utils/consistentHash.js";
 import { AppError } from "../utils/errorHandlers.js";
 import { logger } from "../utils/logger.js";
 const { isURL } = validator;
@@ -49,16 +49,20 @@ export const redirectToLongUrl = async (req, res, next) => {
     if (shortUrlKey.length !== 7) {
       throw new AppError("Incorrect Short URL", 400);
     }
-    const cachedUrl = await client.get(`shortUrlKey:${shortUrlKey}`);
-    if (cachedUrl) {
-      logger.info(
-        `Cache hit for short URL: ${shortUrlKey}, redirecting to original URL: ${cachedUrl}`
-      );
-      res.status(200).json({
-        message: "Redirecting to original URL",
-        originalUrl: cachedUrl,
-      });
-      return;
+    const redis = hashRing.getServer(shortUrlKey);
+    if (redis) {
+      logger.info(`Using ${redis.name} for short URL: ${shortUrlKey}`);
+      const cachedUrl = await redis.client.get(`shortUrlKey:${shortUrlKey}`);
+      if (cachedUrl) {
+        logger.info(
+          `Cache hit for short URL: ${shortUrlKey}, redirecting to original URL: ${cachedUrl}`
+        );
+        res.status(200).json({
+          message: "Redirecting to original URL",
+          originalUrl: cachedUrl,
+        });
+        return;
+      }
     }
     logger.info(`Cache miss for short URL: ${shortUrlKey}, fetching from DB`);
     const url = await URL.findOneAndUpdate(
@@ -83,16 +87,19 @@ export const redirectToLongUrl = async (req, res, next) => {
     logger.info(
       `Redirecting to original URL: ${url.originalUrl} for short URL: ${shortUrlKey} with click count: ${url.clickCount}`
     );
-    client.set(`shortUrlKey:${shortUrlKey}`, url.originalUrl, {
-      expiration: {
-        type: "EX",
-        value: Math.max(
-          0,
-          Math.min(Math.floor((url.expiresAt - new Date()) / 1000), 60 * 60)
-        ),
-      },
-    });
-    logger.info(`Cache set for short URL: ${shortUrlKey}`);
+    if (redis) {
+      logger.info(`Setting cache ${redis.name} for short URL: ${shortUrlKey}`);
+      redis.client.set(`shortUrlKey:${shortUrlKey}`, url.originalUrl, {
+        expiration: {
+          type: "EX",
+          value: Math.max(
+            0,
+            Math.min(Math.floor((url.expiresAt - new Date()) / 1000), 60 * 60)
+          ),
+        },
+      });
+      logger.info(`Cache set for short URL: ${shortUrlKey} at ${redis.name}`);
+    }
     res.status(200).json({
       message: "Redirecting to original URL",
       originalUrl: url.originalUrl,

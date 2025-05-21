@@ -6,7 +6,7 @@ const PORT = process.env.PORT || 3000;
 
 // Importing the URL routes
 import { shortenLimiter } from "./config/rate-limiter.js";
-import client from "./config/redis.js";
+import { redisA, redisB } from "./config/redis.js";
 import urlRoutes from "./routes/urlRoutes.js";
 import { logger, morganMiddleware } from "./utils/logger.js";
 
@@ -46,15 +46,7 @@ app.listen(PORT, async () => {
     .catch((err) => {
       console.error("Error connecting to MongoDB", err);
     });
-  client.on("error", (err) => console.log("Redis Client Error", err));
-
-  client.on("connect", () => {
-    console.log("Connected to Redis");
-  });
-  client.on("ready", () => {
-    console.log("Redis is ready");
-  });
-  await client.connect();
+  await Promise.all([redisA.connect(), redisB.connect()]);
 });
 
 export default app;
