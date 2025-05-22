@@ -1,6 +1,7 @@
 import { customAlphabet } from "nanoid";
 import validator from "validator";
 import URL from "../models/URL.js";
+import { getCacheDetails } from "../utils/cacheCalculation.js";
 import { hashRing } from "../utils/consistentHash.js";
 import { AppError } from "../utils/errorHandlers.js";
 import { logger } from "../utils/logger.js";
@@ -10,6 +11,7 @@ const nanoid = customAlphabet(
   "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
   7
 );
+const METRICS_KEY = (shortUrlKey) => `metrics:${shortUrlKey}`;
 
 export const shortenUrl = async (req, res, next) => {
   try {
@@ -49,7 +51,9 @@ export const redirectToLongUrl = async (req, res, next) => {
     if (shortUrlKey.length !== 7) {
       throw new AppError("Incorrect Short URL", 400);
     }
+    const startTime = Date.now();
     const redis = hashRing.getServer(shortUrlKey);
+    const metricsKey = METRICS_KEY(shortUrlKey);
     if (redis) {
       logger.info(`Using ${redis.name} for short URL: ${shortUrlKey}`);
       const cachedUrl = await redis.client.get(`shortUrlKey:${shortUrlKey}`);
@@ -57,6 +61,11 @@ export const redirectToLongUrl = async (req, res, next) => {
         logger.info(
           `Cache hit for short URL: ${shortUrlKey}, redirecting to original URL: ${cachedUrl}`
         );
+        await redis.client
+          .multi()
+          .hIncrBy(metricsKey, "cacheHits", 1)
+          .hIncrBy(metricsKey, "hit_latency_sum", Date.now() - startTime)
+          .exec();
         res.status(200).json({
           message: "Redirecting to original URL",
           originalUrl: cachedUrl,
@@ -89,15 +98,22 @@ export const redirectToLongUrl = async (req, res, next) => {
     );
     if (redis) {
       logger.info(`Setting cache ${redis.name} for short URL: ${shortUrlKey}`);
-      redis.client.set(`shortUrlKey:${shortUrlKey}`, url.originalUrl, {
-        expiration: {
-          type: "EX",
-          value: Math.max(
-            0,
-            Math.min(Math.floor((url.expiresAt - new Date()) / 1000), 60 * 60)
-          ),
-        },
-      });
+      const cacheExpiry = Math.max(
+        0,
+        Math.min(Math.floor((url.expiresAt - new Date()) / 1000), 60 * 60)
+      );
+      await redis.client
+        .multi()
+        .hIncrBy(metricsKey, "cacheMisses", 1)
+        .hIncrBy(metricsKey, "miss_latency_sum", Date.now() - startTime)
+        .set(`shortUrlKey:${shortUrlKey}`, url.originalUrl, {
+          expiration: {
+            type: "EX",
+            value: cacheExpiry,
+          },
+        })
+        .expire(metricsKey, cacheExpiry)
+        .exec();
       logger.info(`Cache set for short URL: ${shortUrlKey} at ${redis.name}`);
     }
     res.status(200).json({
@@ -135,6 +151,20 @@ export const getUrlStats = async (req, res, next) => {
     logger.info(
       `Fetching stats for short URL: ${shortUrlKey} with original URL: ${url.originalUrl} and click count: ${url.clickCount}, createdAt: ${url.createdAt}`
     );
+    const redis = hashRing.getServer(shortUrlKey);
+    const metricsKey = METRICS_KEY(shortUrlKey);
+    let cacheData = {};
+    if (redis) {
+      const metrics = await redis.client.hGetAll(metricsKey);
+      if (metrics) {
+        logger.info(
+          `Metrics for short URL: ${shortUrlKey} from ${
+            redis.name
+          }: ${JSON.stringify(metrics)}`
+        );
+        cacheData = getCacheDetails(metrics);
+      }
+    }
     res.status(200).json({
       message: "URL stats fetched successfully",
       originalUrl: url.originalUrl,
@@ -146,6 +176,7 @@ export const getUrlStats = async (req, res, next) => {
       }),
       expiresIn: Math.floor(url.expiresAt - new Date()),
       status: url.expiresAt > new Date() ? "active" : "expired",
+      ...cacheData,
     });
   } catch (err) {
     next(err);
