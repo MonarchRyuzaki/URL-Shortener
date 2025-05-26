@@ -13,6 +13,8 @@ const nanoid = customAlphabet(
 );
 const METRICS_KEY = (shortUrlKey) => `metrics:${shortUrlKey}`;
 
+const stream = hashRing.getServer("clicks");
+
 export const shortenUrl = async (req, res, next) => {
   try {
     const { originalUrl } = req.body;
@@ -54,13 +56,26 @@ export const redirectToLongUrl = async (req, res, next) => {
     const startTime = Date.now();
     const redis = hashRing.getServer(shortUrlKey);
     const metricsKey = METRICS_KEY(shortUrlKey);
-    const stream = hashRing.getServer("clicks");
     if (stream) {
       logger.info(`Using ${stream.name} for click stream`);
-      await stream.client.xAdd("clicks", "*", {
-        "shortUrlKey" : `${shortUrlKey}`,
-        "clickCount": "1",
+      stream.client.xAdd("clicks", "*", {
+        shortUrlKey: `${shortUrlKey}`,
+        clickCount: "1",
+      }, {
+        'MAXLEN': 20000,
       });
+    }
+    if (redis) {
+      redis.client
+        .multi()
+        .hIncrBy(metricsKey, "cacheHits", 1)
+        .hIncrBy(metricsKey, "hit_latency_sum", Date.now() - startTime)
+        .exec()
+        .catch((err) => {
+          logger.error(
+            `Error updating cache metrics for short URL: ${shortUrlKey} in ${redis.name}: ${err.message}`
+          );
+        });
     }
     if (redis) {
       logger.info(`Using ${redis.name} for short URL: ${shortUrlKey}`);
@@ -69,15 +84,7 @@ export const redirectToLongUrl = async (req, res, next) => {
         logger.info(
           `Cache hit for short URL: ${shortUrlKey}, redirecting to original URL: ${cachedUrl}`
         );
-        await redis.client
-          .multi()
-          .hIncrBy(metricsKey, "cacheHits", 1)
-          .hIncrBy(metricsKey, "hit_latency_sum", Date.now() - startTime)
-          .exec();
-        res.status(200).json({
-          message: "Redirecting to original URL",
-          originalUrl: cachedUrl,
-        });
+        res.redirect(301, cachedUrl);
         return;
       }
     }
@@ -100,8 +107,6 @@ export const redirectToLongUrl = async (req, res, next) => {
       );
       await redis.client
         .multi()
-        .hIncrBy(metricsKey, "cacheMisses", 1)
-        .hIncrBy(metricsKey, "miss_latency_sum", Date.now() - startTime)
         .set(`shortUrlKey:${shortUrlKey}`, url.originalUrl, {
           expiration: {
             type: "EX",
@@ -112,11 +117,7 @@ export const redirectToLongUrl = async (req, res, next) => {
         .exec();
       logger.info(`Cache set for short URL: ${shortUrlKey} at ${redis.name}`);
     }
-    res.status(200).json({
-      message: "Redirecting to original URL",
-      originalUrl: url.originalUrl,
-    });
-    // res.redirect(301, originalUrl);
+    res.redirect(301, url.originalUrl);
   } catch (err) {
     next(err);
   }

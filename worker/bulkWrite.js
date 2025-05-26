@@ -90,8 +90,7 @@ async function main() {
   }
 }
 
-// every 1 minutes
-nodeCron.schedule("*/1 * * * *", async () => {
+nodeCron.schedule("*/10 * * * *", async () => {
   try {
     console.log("Running scheduled task to perform bulk write");
     await main();
