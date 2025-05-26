@@ -54,6 +54,14 @@ export const redirectToLongUrl = async (req, res, next) => {
     const startTime = Date.now();
     const redis = hashRing.getServer(shortUrlKey);
     const metricsKey = METRICS_KEY(shortUrlKey);
+    const stream = hashRing.getServer("clicks");
+    if (stream) {
+      logger.info(`Using ${stream.name} for click stream`);
+      await stream.client.xAdd("clicks", "*", {
+        "shortUrlKey" : `${shortUrlKey}`,
+        "clickCount": "1",
+      });
+    }
     if (redis) {
       logger.info(`Using ${redis.name} for short URL: ${shortUrlKey}`);
       const cachedUrl = await redis.client.get(`shortUrlKey:${shortUrlKey}`);
@@ -74,19 +82,7 @@ export const redirectToLongUrl = async (req, res, next) => {
       }
     }
     logger.info(`Cache miss for short URL: ${shortUrlKey}, fetching from DB`);
-    const url = await URL.findOneAndUpdate(
-      {
-        shortUrlKey,
-      },
-      {
-        $inc: { clickCount: 1 },
-      },
-      {
-        new: true,
-        projection: { originalUrl: 1, clickCount: 1, expiresAt: 1 },
-        lean: true,
-      }
-    ).exec();
+    const url = await URL.findOne({ shortUrlKey }).lean().exec();
     if (!url || !url.originalUrl) {
       throw new AppError(`Short URL Key not found: ${shortUrlKey}`, 404);
     }
@@ -119,7 +115,6 @@ export const redirectToLongUrl = async (req, res, next) => {
     res.status(200).json({
       message: "Redirecting to original URL",
       originalUrl: url.originalUrl,
-      clickCount: url.clickCount,
     });
     // res.redirect(301, originalUrl);
   } catch (err) {
