@@ -2,9 +2,9 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import mongoose from "mongoose";
+import nodeCron from "node-cron";
 import URL from "../models/URL.js";
 import { hashRing } from "../utils/consistentHash.js";
-import nodeCron from "node-cron";
 
 async function main() {
   await mongoose.connect(process.env.MONGO_URI);
@@ -81,19 +81,25 @@ async function main() {
     }
   }
   try {
-    performBulkWrite();
+    await performBulkWrite();
   } catch (e) {
     mongoose.disconnect();
     console.error("Error in performBulkWrite:", e);
-    redis.client.quit();
+    await redis.client.quit();
     return;
   }
 }
 
 // every 1 minutes
-nodeCron.schedule("*/1 * * * *", () => {
-  console.log("Running scheduled task to perform bulk write");
-  main().catch((err) => {
+nodeCron.schedule("*/1 * * * *", async () => {
+  try {
+    console.log("Running scheduled task to perform bulk write");
+    await main();
+    console.log("Scheduled task completed");
+  } catch (err) {
     console.error("Error in scheduled task:", err);
-  });
+  } finally {
+    mongoose.disconnect();
+    hashRing.getServer("clicks").client.quit();
+  }
 });
