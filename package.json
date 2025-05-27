@@ -5,7 +5,8 @@
   "description": "A URL shortener service",
   "type": "module",
   "scripts": {
-    "start": "node"
+    "start": "node",
+    "clicks:flush" : "node ./worker/bulkWrite.js"
   },
   "dependencies": {
     "debug": "~2.6.9",

@@ -90,7 +90,7 @@ async function main() {
   }
 }
 
-nodeCron.schedule("*/10 * * * *", async () => {
+nodeCron.schedule("*/1 * * * *", async () => {
   try {
     console.log("Running scheduled task to perform bulk write");
     await main();
