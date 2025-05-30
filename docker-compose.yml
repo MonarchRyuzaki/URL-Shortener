@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  url-shortener-1:
+    build: .
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - BASE_URL=http://localhost:3001
+      - MONGO_URI=${MONGO_URI}
+      - REDIS_PASSWORD1=${REDIS_PASSWORD1}
+      - REDIS_HOST1=${REDIS_HOST1}
+      - REDIS_PORT1=${REDIS_PORT1}
+      - REDIS_PASSWORD2=${REDIS_PASSWORD2}
+      - REDIS_HOST2=${REDIS_HOST2}
+      - REDIS_PORT2=${REDIS_PORT2}
+    container_name: url-shortener-1
+    restart: unless-stopped
+
+  url-shortener-2:
+    build: .
+    ports:
+      - "3002:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - BASE_URL=http://localhost:3002
+      - MONGO_URI=${MONGO_URI}
+      - REDIS_PASSWORD1=${REDIS_PASSWORD1}
+      - REDIS_HOST1=${REDIS_HOST1}
+      - REDIS_PORT1=${REDIS_PORT1}
+      - REDIS_PASSWORD2=${REDIS_PASSWORD2}
+      - REDIS_HOST2=${REDIS_HOST2}
+      - REDIS_PORT2=${REDIS_PORT2}
+    container_name: url-shortener-2
+    restart: unless-stopped
