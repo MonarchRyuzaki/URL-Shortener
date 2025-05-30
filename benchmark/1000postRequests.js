@@ -3,8 +3,8 @@ import { customAlphabet } from 'nanoid';
 import axios from 'axios';
 
 const nanoid = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', 7);
-// const URL = 'http://localhost:3000/api/v1/shorten';
-const URL = 'https://url-shortener-pbhq.onrender.com/api/v1/shorten';
+const URL = 'http://localhost:80/api/v1/shorten';
+// const URL = 'https://url-shortener-pbhq.onrender.com/api/v1/shorten';
 const id = nanoid();
 const shortUrls = [];
 
