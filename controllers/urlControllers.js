@@ -103,7 +103,7 @@ export const redirectToLongUrl = async (req, res, next) => {
       logger.info(`Setting cache ${redis.name} for short URL: ${shortUrlKey}`);
       const cacheExpiry = Math.max(
         0,
-        Math.min(Math.floor((url.expiresAt - new Date()) / 1000), 60 * 60)
+        Math.min(Math.floor((url.expiresAt - new Date()) / 1000), 24 * 60 * 60)
       );
       await redis.client
         .multi()
