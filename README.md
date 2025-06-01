@@ -175,7 +175,7 @@ Create a shortened URL
 }
 ```
 
-### GET `/:shortUrlKey`
+### GET `/api/v1/:shortUrlKey`
 
 Redirect to the original URL
 
@@ -237,12 +237,22 @@ cp .env.example .env
 Required environment variables:
 
 ```env
-PORT=3000
-MONGO_URI=mongodb://localhost:27017/url-shortener
-REDIS_A_URL=redis://localhost:6379
-REDIS_B_URL=redis://localhost:6380
-BASE_URL=http://localhost:3000
+BASE_URL=http://localhost
 NODE_ENV=development
+PORT=3000
+
+# Database Configuration
+MONGO_URI=<your-mongo-uri>
+ 
+# Redis Configuration - Primary
+REDIS_PASSWORD1=<your-redis-password>
+REDIS_HOST1=<your-redis-host>
+REDIS_PORT1=<your-redis-port>
+
+# Redis Configuration - Secondary
+REDIS_PASSWORD2=<your-redis-password>
+REDIS_HOST2=<your-redis-host>
+REDIS_PORT2=<your-redis-port>
 ```
 
 4. **Start the services**

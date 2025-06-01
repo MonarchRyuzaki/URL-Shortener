@@ -12,7 +12,7 @@ const nanoid = customAlphabet(
   7
 );
 const METRICS_KEY = (shortUrlKey) => `metrics:${shortUrlKey}`;
-
+const BASE_URL = `${process.env.BASE_URL}:${process.env.PORT}`;
 const stream = hashRing.getServer("clicks");
 
 export const shortenUrl = async (req, res, next) => {
@@ -27,7 +27,7 @@ export const shortenUrl = async (req, res, next) => {
       { $setOnInsert: { originalUrl, shortUrlKey: nanoid() } },
       { new: true, upsert: true, setDefaultsOnInsert: true, lean: true }
     ).exec();
-    const shortUrl = `${process.env.BASE_URL}/api/v1/${url.shortUrlKey}`;
+    const shortUrl = `${BASE_URL}/api/v1/${url.shortUrlKey}`;
 
     logger.info(
       `Shortened URL: ${shortUrl} for original URL: ${originalUrl} and saved to DB with ID: ${url._id}`
